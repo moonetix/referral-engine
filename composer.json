@@ -1,0 +1,22 @@
+{
+    "name": "moonetix/referral-engine",
+    "description": "Referral codes, attribution with fraud checks, commission plans and an append-only commission ledger. JavaScript and PHP.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://moonetix.com/academy/traffic-quality/prevent-referral-fraud",
+    "keywords": ["referral", "affiliate", "commission", "ledger", "fraud-detection"],
+    "require": {
+        "php": ">=8.1"
+    },
+    "suggest": {
+        "ext-pdo": "For PdoStore and the SQL schemas in schema/"
+    },
+    "autoload": {
+        "psr-4": {
+            "Moonetix\\ReferralEngine\\": "php/src/"
+        }
+    },
+    "scripts": {
+        "test": "php php/tests/run.php"
+    }
+}
