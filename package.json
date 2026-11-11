@@ -1,0 +1,46 @@
+{
+  "name": "referral-engine",
+  "version": "1.0.0",
+  "description": "Referral codes, attribution with fraud checks, commission plans and an append-only commission ledger. JavaScript and PHP.",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./sqlite": {
+      "types": "./src/sqlite-store.d.ts",
+      "default": "./src/sqlite-store.js"
+    },
+    "./schema/*": "./schema/*"
+  },
+  "files": [
+    "src/",
+    "schema/",
+    "test-vectors/vectors.json"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "test:php": "php php/tests/run.php"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "referral",
+    "affiliate",
+    "referral-program",
+    "commission",
+    "ledger",
+    "fraud-detection"
+  ],
+  "homepage": "https://moonetix.com/academy/traffic-quality/prevent-referral-fraud",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moonetix/referral-engine.git"
+  },
+  "license": "MIT",
+  "author": "Moonetix (https://moonetix.com)"
+}
