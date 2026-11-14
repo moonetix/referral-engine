@@ -7,6 +7,7 @@
 [![Zero dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen)](package.json)
 [![Node 20+](https://img.shields.io/badge/node-20%2B-339933)](package.json)
 [![PHP 8.1+](https://img.shields.io/badge/php-8.1%2B-777BB4)](composer.json)
+[![Packagist](https://img.shields.io/packagist/v/moonetix/referral-engine?color=004ABB)](https://packagist.org/packages/moonetix/referral-engine)
 [![Guide: referral fraud](https://img.shields.io/badge/guide-preventing%20referral%20fraud-004ABB)](https://moonetix.com/academy/traffic-quality/prevent-referral-fraud)
 
 Maintained by [Moonetix](https://moonetix.com).
@@ -54,12 +55,11 @@ flowchart TD
 
 ## Quick start
 
-The package is not on npm or Packagist yet. Copy it in or install from Git:
+The PHP package is on [Packagist](https://packagist.org/packages/moonetix/referral-engine). The JavaScript package is not on npm yet, so install it from Git:
 
 ```bash
+composer require moonetix/referral-engine
 npm install github:moonetix/referral-engine
-composer config repositories.referral-engine vcs https://github.com/moonetix/referral-engine
-composer require moonetix/referral-engine:^1.0
 ```
 
 **JavaScript**
