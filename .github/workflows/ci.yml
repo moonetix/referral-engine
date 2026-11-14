@@ -38,3 +38,85 @@ jobs:
       - run: php php/tests/run.php
       - name: Examples
         run: for f in examples/*.php; do echo "== $f"; php "$f"; done
+
+  # PdoStore locks on real servers: parallel payouts from separate connections.
+  # The passwords below belong to the throwaway service containers of this job and to nothing else.
+  php-databases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: referral
+          POSTGRES_PASSWORD: referral_test_only
+          POSTGRES_DB: referral_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U referral -d referral_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: referral_test_only
+          MYSQL_DATABASE: referral_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: referral_test_only
+          MARIADB_DATABASE: referral_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.4"
+          extensions: pdo_mysql, pdo_pgsql
+          coverage: none
+      # Each step runs the test, then a control: with a transaction but no lock, the test must fail.
+      - name: Parallel payouts on PostgreSQL
+        env:
+          REFERRAL_TEST_DSN: pgsql:host=127.0.0.1;port=5432;dbname=referral_test
+          REFERRAL_TEST_USER: referral
+          REFERRAL_TEST_PASSWORD: referral_test_only
+        run: |
+          php php/tests/concurrency.php
+          code=0
+          REFERRAL_TEST_LOCK=transaction php php/tests/concurrency.php || code=$?
+          if [ "$code" -ne 1 ]; then echo "the control must fail with exit code 1, got $code"; exit 1; fi
+      - name: Parallel payouts on MySQL
+        env:
+          REFERRAL_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=referral_test
+          REFERRAL_TEST_USER: root
+          REFERRAL_TEST_PASSWORD: referral_test_only
+        run: |
+          php php/tests/concurrency.php
+          code=0
+          REFERRAL_TEST_LOCK=transaction php php/tests/concurrency.php || code=$?
+          if [ "$code" -ne 1 ]; then echo "the control must fail with exit code 1, got $code"; exit 1; fi
+      - name: Parallel payouts on MariaDB
+        env:
+          REFERRAL_TEST_DSN: mysql:host=127.0.0.1;port=3307;dbname=referral_test
+          REFERRAL_TEST_USER: root
+          REFERRAL_TEST_PASSWORD: referral_test_only
+        run: |
+          php php/tests/concurrency.php
+          code=0
+          REFERRAL_TEST_LOCK=transaction php php/tests/concurrency.php || code=$?
+          if [ "$code" -ne 1 ]; then echo "the control must fail with exit code 1, got $code"; exit 1; fi
