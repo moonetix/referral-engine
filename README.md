@@ -17,7 +17,7 @@ This library covers the parts that have to be exact: codes people can read aloud
 
 - **JavaScript:** ESM, zero dependencies, TypeScript declarations, Node 20+.
 - **PHP:** 8.1+, zero dependencies. PDO only if you use `PdoStore`.
-- **One spec:** both suites run the same [test vectors](test-vectors/vectors.json), 152 cases, including 15 ledger scenarios that also run on a real SQLite database.
+- **One spec:** both suites run the same [test vectors](test-vectors/vectors.json), 153 cases, including 16 ledger scenarios that also run on a real SQLite database.
 
 Commission is earned only from the referred user's own confirmed earnings and is paid on top of them. There is no sign-up or invite bonus, by design: a reward for creating an account is the easiest money a referral farm can collect.
 
@@ -245,9 +245,9 @@ Every change is an appended entry. Nothing is updated or deleted, and the refere
 | `insertReferral(referral)` | `false` when the referee already has one |
 | `listEntries({ referrerId?, refereeId?, earningId? })` | Matching entries in insertion order |
 | `appendEntries(entries)` | All or nothing; `false`, writing nothing, when a key exists |
-| `withLock(key, fn)` | Run `fn` without interleaving writes for the same key. Optional in JavaScript |
+| `withLock(key, fn)` | Run `fn` without interleaving writes for the same key. Optional in JavaScript: without it the engine queues its calls per key, which is enough only while a single process writes to the store |
 
-Schemas: [schema/postgresql.sql](schema/postgresql.sql), [schema/mysql.sql](schema/mysql.sql), [schema/sqlite.sql](schema/sqlite.sql). Amount and time columns are `BIGINT`. CI runs every ledger vector against the SQLite schema in both languages; review the PostgreSQL and MySQL files against your server version before you use them.
+Schemas: [schema/postgresql.sql](schema/postgresql.sql), [schema/mysql.sql](schema/mysql.sql), [schema/sqlite.sql](schema/sqlite.sql). Amount and time columns are `BIGINT`. CI runs every ledger vector against the SQLite schema in both languages, and loads the PostgreSQL and MySQL files into PostgreSQL 17, MySQL 8.4 and MariaDB 11.4 for the parallel payout test; review them against your own server version before you use them.
 
 <!-- example: examples/sqlite.mjs -->
 ```js
@@ -293,7 +293,7 @@ foreach ([1, 2] as $attempt) {
 echo $pdo->query('SELECT SUM(amount) FROM referral_ledger')->fetchColumn(), "\n"; // -> 200
 ```
 
-`node:sqlite` works without a flag from Node 22.13; 22.5 to 22.12 need `--experimental-sqlite`. `PdoStore` runs each engine call in one transaction. SQLite allows one writer at a time, so that is enough there. On MySQL and PostgreSQL at the default isolation level, two workers handling the same earning at the same moment can still interleave: route postbacks for one transaction ID to one worker, or extend `withLock` with `SELECT ... FOR UPDATE` on the referral row.
+`node:sqlite` works without a flag from Node 22.13; 22.5 to 22.12 need `--experimental-sqlite`. `PdoStore` runs each engine call in one transaction. SQLite allows one writer at a time, so that is enough there. On PostgreSQL and MySQL a transaction alone would let two workers read the same balance, so `withLock` also takes a lock named after its key before the first read: `pg_advisory_xact_lock` on PostgreSQL, held until the transaction ends, and `GET_LOCK` on MySQL and MariaDB, released after the commit. Two payouts for one referrer, or two copies of one earning, then run one after the other. Keep PostgreSQL at READ COMMITTED, its default, for these connections. On MySQL a call that waits more than 10 seconds for its lock throws `conflict`, and the engine should be called outside a transaction of your own: a named lock is released when the call returns, not when your transaction commits. At MySQL's default REPEATABLE READ, an earning that waited for another call of the same referrer still measures caps and tiers on the rows it saw when it started; use READ COMMITTED if a cap must hold exactly under parallel earnings. CI runs a parallel payout test against PostgreSQL, MySQL and MariaDB: eight connections ask for the same balance at the same moment, and exactly one of them is paid.
 
 ## Fraud signals
 
@@ -354,7 +354,7 @@ Off by default. With `multiLevel: { levels: [300], acknowledgeRegulatoryRisk: tr
 4. When the referee's own reward is confirmed, `recordEarning` measures the referrer's tier, applies the plan, then the per-earning, per-referee and per-period caps, and appends one accrual keyed by the earning ID. The commission is computed as one integer product and rounded down once.
 5. `balance(referrerId, at)` replays the referrer's entries up to `at`: accruals still in their hold are pending, the rest is available, minus clawbacks and payouts.
 6. `reverseEarning` reads what was accrued for that earning and what was already clawed back, and appends a clawback for the difference between the new cumulative share and the old one. It can never exceed the original commission.
-7. Each call runs inside the store's `withLock`, and the ledger's unique key makes a concurrent duplicate fail instead of double-counting.
+7. Each call runs inside the store's `withLock`, or inside the engine's own queue per key when a JavaScript store has none, and the ledger's unique key makes a concurrent duplicate fail instead of double-counting.
 
 ## Pitfalls
 
@@ -376,7 +376,7 @@ Off by default. With `multiLevel: { levels: [300], acknowledgeRegulatoryRisk: tr
 | --- | --- | --- |
 | `already_referred` | `attach` | The referee already has a different referrer. Keep the first one; a repeat with the same referrer is a no-op and does not throw |
 | `referral_cycle`, `self_referral` | `attach` | The pair would loop or is one user. Drop the referral |
-| `insufficient_balance` | `recordPayout` | The message gives the available balance. Pending accruals cannot be paid out until `holdSeconds` pass |
+| `insufficient_balance` | `recordPayout` | The message gives the available balance. Pending accruals cannot be paid out until `holdSeconds` pass. Payouts, clawbacks and negative adjustments already in the ledger always count, even when the new payout carries an earlier `at` |
 | `conflict` | any ledger write | Another worker wrote the same ledger key between the check and the insert, usually because the store's `withLock` does not cover your workers. Retry the call: a repeated earning, payout or adjustment ID then returns `status: 'duplicate'` |
 | `invalid_plan` | `definePlan`, the engine constructor | The message names the field, for example tiers that do not start at `from: 0` |
 | `multi_level_not_acknowledged` | the engine constructor | `multiLevel` was set without `acknowledgeRegulatoryRisk: true` |
@@ -391,9 +391,12 @@ Off by default. With `multiLevel: { levels: [300], acknowledgeRegulatoryRisk: tr
 ```bash
 npm test                 # node --test: shared vectors, SQLite store, API tests, every example
 php php/tests/run.php    # shared vectors on MemoryStore and PdoStore (SQLite), PHP-specific checks
+php php/tests/concurrency.php   # parallel payouts on a real database, skipped without REFERRAL_TEST_DSN
 ```
 
-`test-vectors/vectors.json` holds 152 cases: code generation from fixed random bytes, check characters, IPv4 and IPv6 prefixes, every attribution rule, plan validation, commission math up to 2^53 - 1, fraud signals and 15 ledger scenarios (100 checked steps) with caps, tiers, holds, partial reversals, the balance floor and multi-level chains. Every file in `examples/` runs in the tests, and its output must match the `// ->` comments, which are the same code blocks you see in this README.
+`php/tests/concurrency.php` takes `REFERRAL_TEST_DSN` (`pgsql:`, `mysql:` or `sqlite:`) with `REFERRAL_TEST_USER` and `REFERRAL_TEST_PASSWORD`. It drops and recreates the referral tables there, so point it at a throwaway database. Worker processes with their own connections then call `recordPayout` at the same moment: one balance must be paid exactly once, and payouts for different referrers must all go through.
+
+`test-vectors/vectors.json` holds 153 cases: code generation from fixed random bytes, check characters, IPv4 and IPv6 prefixes, every attribution rule, plan validation, commission math up to 2^53 - 1, fraud signals and 16 ledger scenarios (113 checked steps) with caps, tiers, holds, partial reversals, the balance floor, payouts dated out of order and multi-level chains. Every file in `examples/` runs in the tests, and its output must match the `// ->` comments, which are the same code blocks you see in this README.
 
 ## Further reading
 
