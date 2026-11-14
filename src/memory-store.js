@@ -1,3 +1,5 @@
+import { keyLock } from './util.js';
+
 const FILTERS = ['referrerId', 'refereeId', 'earningId'];
 
 /** In-memory store for tests and prototypes. State is lost when the process exits. */
@@ -5,7 +7,7 @@ export class MemoryStore {
   #referrals = new Map();
   #entries = [];
   #keys = new Set();
-  #locks = new Map();
+  #lock = keyLock();
 
   getReferral(refereeId) {
     const r = this.#referrals.get(String(refereeId));
@@ -33,19 +35,6 @@ export class MemoryStore {
   }
 
   async withLock(key, fn) {
-    const prev = this.#locks.get(key) ?? Promise.resolve();
-    let release;
-    const mine = new Promise((resolve) => {
-      release = resolve;
-    });
-    const tail = prev.then(() => mine);
-    this.#locks.set(key, tail);
-    await prev;
-    try {
-      return await fn();
-    } finally {
-      release();
-      if (this.#locks.get(key) === tail) this.#locks.delete(key);
-    }
+    return this.#lock(key, fn);
   }
 }

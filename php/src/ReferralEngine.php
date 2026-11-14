@@ -325,11 +325,32 @@ final class ReferralEngine
         $at = Util::int($input['at'] ?? null, 'at');
         $e = self::entry(['key' => "payout:{$payout}", 'type' => 'payout', 'referrerId' => $referrer, 'amount' => -$amount, 'at' => $at]);
         return $this->single($referrer, $e, function () use ($referrer, $amount, $at): void {
-            $available = $this->balance($referrer, $at)['available'];
+            $available = $this->payable($referrer, $at);
             if ($amount > $available) {
                 Util::fail('insufficient_balance', "available balance is {$available}, payout is {$amount}");
             }
         });
+    }
+
+    /**
+     * What a payout dated $at may take: commission released by then, less every clawback, payout
+     * and negative adjustment already in the ledger, even one that carries a later timestamp.
+     */
+    private function payable(string $referrer, int $at): int
+    {
+        $entries = $this->store->listEntries(['referrerId' => $referrer]);
+        $payable = 0;
+        foreach (self::accrualStates($entries) as $s) {
+            if ($s['entry']['availableAt'] <= $at) {
+                $payable += $s['entry']['amount'] - $s['taken'];
+            }
+        }
+        foreach ($entries as $e) {
+            if (($e['type'] === 'payout' || $e['type'] === 'adjustment') && ($e['amount'] < 0 || $e['at'] <= $at)) {
+                $payable += $e['amount'];
+            }
+        }
+        return $payable;
     }
 
     public function recordAdjustment(array $input): array

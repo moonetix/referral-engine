@@ -57,6 +57,27 @@ export function mulDiv(a, b, d) {
   return Number(q);
 }
 
+/** A queue per key: calls for one key run one after another, in call order, inside this process. */
+export function keyLock() {
+  const tails = new Map();
+  return async (key, fn) => {
+    const prev = tails.get(key) ?? Promise.resolve();
+    let release;
+    const mine = new Promise((resolve) => {
+      release = resolve;
+    });
+    const tail = prev.then(() => mine);
+    tails.set(key, tail);
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release();
+      if (tails.get(key) === tail) tails.delete(key);
+    }
+  };
+}
+
 export function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
 }

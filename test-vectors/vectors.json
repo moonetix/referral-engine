@@ -289,6 +289,21 @@
       {"op":"recordAdjustment","input":{"adjustmentId":"goodwill-1","referrerId":"a","amount":25,"at":160},"out":{"status":"recorded","entry":{"key":"adjustment:goodwill-1","type":"adjustment","referrerId":"a","refereeId":null,"earningId":null,"level":null,"amount":25,"baseAmount":0,"uncollected":0,"at":160,"availableAt":160}}},
       {"op":"recordAdjustment","input":{"adjustmentId":"zero","referrerId":"a","amount":0,"at":160},"throws":"invalid_argument"},
       {"op":"balance","referrerId":"a","at":200,"out":{"pending":0,"available":425,"total":425,"uncollected":0}}
+    ]},
+    {"name":"a payout dated before recorded debits still counts them","config":{"plan":{"type":"percentage","rateBps":1000}}, "steps": [
+      {"op":"attach","input":{"refereeId":"b","referrerId":"a","at":0},"out":{"status":"attached","referral":{"refereeId":"b","referrerId":"a","attributedAt":0,"code":null}}},
+      {"op":"recordEarning","input":{"earningId":"e1","refereeId":"b","amount":5000,"at":10},"out":{"status":"accrued","reason":null,"capped":[],"commissions":[{"level":1,"referrerId":"a","amount":500,"availableAt":10}]}},
+      {"op":"recordPayout","input":{"payoutId":"p1","referrerId":"a","amount":300,"at":200},"out":{"status":"recorded","entry":{"key":"payout:p1","type":"payout","referrerId":"a","refereeId":null,"earningId":null,"level":null,"amount":-300,"baseAmount":0,"uncollected":0,"at":200,"availableAt":200}}},
+      {"op":"recordPayout","input":{"payoutId":"p2","referrerId":"a","amount":300,"at":150},"throws":"insufficient_balance"},
+      {"op":"recordPayout","input":{"payoutId":"p2","referrerId":"a","amount":200,"at":150},"out":{"status":"recorded","entry":{"key":"payout:p2","type":"payout","referrerId":"a","refereeId":null,"earningId":null,"level":null,"amount":-200,"baseAmount":0,"uncollected":0,"at":150,"availableAt":150}}},
+      {"op":"recordEarning","input":{"earningId":"e2","refereeId":"b","amount":4000,"at":300},"out":{"status":"accrued","reason":null,"capped":[],"commissions":[{"level":1,"referrerId":"a","amount":400,"availableAt":300}]}},
+      {"op":"reverseEarning","input":{"earningId":"e2","at":400},"out":{"status":"reversed","reason":null,"clawbacks":[{"level":1,"referrerId":"a","amount":400,"uncollected":0}]}},
+      {"op":"recordPayout","input":{"payoutId":"p3","referrerId":"a","amount":400,"at":350},"throws":"insufficient_balance"},
+      {"op":"recordAdjustment","input":{"adjustmentId":"bonus-1","referrerId":"a","amount":100,"at":500},"out":{"status":"recorded","entry":{"key":"adjustment:bonus-1","type":"adjustment","referrerId":"a","refereeId":null,"earningId":null,"level":null,"amount":100,"baseAmount":0,"uncollected":0,"at":500,"availableAt":500}}},
+      {"op":"recordPayout","input":{"payoutId":"p4","referrerId":"a","amount":100,"at":450},"throws":"insufficient_balance"},
+      {"op":"recordPayout","input":{"payoutId":"p4","referrerId":"a","amount":100,"at":500},"out":{"status":"recorded","entry":{"key":"payout:p4","type":"payout","referrerId":"a","refereeId":null,"earningId":null,"level":null,"amount":-100,"baseAmount":0,"uncollected":0,"at":500,"availableAt":500}}},
+      {"op":"balance","referrerId":"a","at":350,"out":{"pending":0,"available":400,"total":400,"uncollected":0}},
+      {"op":"balance","referrerId":"a","at":1000,"out":{"pending":0,"available":0,"total":0,"uncollected":0}}
     ]}
   ]
 }

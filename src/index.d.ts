@@ -213,7 +213,10 @@ export interface Store {
   listEntries(filter: { referrerId?: string; refereeId?: string; earningId?: string }): MaybePromise<LedgerEntry[]>;
   /** Write all entries or none. Resolve false, writing nothing, when any key already exists. */
   appendEntries(entries: LedgerEntry[]): MaybePromise<boolean>;
-  /** Optional: run fn without interleaving other writes for the same key. */
+  /**
+   * Run fn without interleaving other writes for the same key. Without it the engine queues its
+   * calls per key, which is enough only while a single process writes to the store.
+   */
   withLock?<T>(key: string, fn: () => Promise<T>): Promise<T>;
 }
 

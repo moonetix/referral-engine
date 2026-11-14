@@ -1,4 +1,4 @@
-import { BPS, MAX_AMOUNT, fail, id, int, mulDiv } from './util.js';
+import { BPS, MAX_AMOUNT, fail, id, int, keyLock, mulDiv } from './util.js';
 import { asPlan, commissionFor } from './plan.js';
 
 export const ENTRY_FIELDS = ['key', 'type', 'referrerId', 'refereeId', 'earningId', 'level', 'amount', 'baseAmount', 'uncollected', 'at', 'availableAt'];
@@ -48,6 +48,7 @@ export class ReferralEngine {
   #allowNegative;
   #levels;
   #availableHook;
+  #queue = keyLock();
 
   constructor({ store, plan, holdSeconds = 0, allowNegativeBalance = true, multiLevel = null, availableBalance = null } = {}) {
     for (const m of ['getReferral', 'insertReferral', 'listEntries', 'appendEntries']) {
@@ -70,8 +71,9 @@ export class ReferralEngine {
     this.#availableHook = availableBalance;
   }
 
+  // A store without withLock still gets one queue per key, which covers a single process.
   async #locked(key, fn) {
-    return typeof this.#store.withLock === 'function' ? this.#store.withLock(key, fn) : fn();
+    return typeof this.#store.withLock === 'function' ? this.#store.withLock(key, fn) : this.#queue(key, fn);
   }
 
   async attach({ refereeId, referrerId, at, code = null } = {}) {
@@ -231,9 +233,25 @@ export class ReferralEngine {
     int(amount, 'amount', 1);
     int(at, 'at');
     return this.#single(referrer, entry({ key: `payout:${payout}`, type: 'payout', referrerId: referrer, amount: -amount, at }), async () => {
-      const { available } = await this.balance(referrer, at);
+      const available = await this.#payable(referrer, at);
       if (amount > available) fail('insufficient_balance', `available balance is ${available}, payout is ${amount}`);
     });
+  }
+
+  /**
+   * What a payout dated `at` may take: commission released by then, less every clawback, payout
+   * and negative adjustment already in the ledger, even one that carries a later timestamp.
+   */
+  async #payable(referrer, at) {
+    const entries = await this.#store.listEntries({ referrerId: referrer });
+    let payable = 0;
+    for (const s of accrualStates(entries).values()) {
+      if (s.entry.availableAt <= at) payable += s.entry.amount - s.taken;
+    }
+    for (const e of entries) {
+      if ((e.type === 'payout' || e.type === 'adjustment') && (e.amount < 0 || e.at <= at)) payable += e.amount;
+    }
+    return payable;
   }
 
   async recordAdjustment({ adjustmentId, referrerId, amount, at } = {}) {
