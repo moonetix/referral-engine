@@ -1,6 +1,6 @@
 {
-  "name": "referral-engine",
-  "version": "1.0.1",
+  "name": "@moonetix/referral-engine",
+  "version": "1.1.0",
   "description": "Referral codes, attribution with fraud checks, commission plans and an append-only commission ledger. JavaScript and PHP.",
   "type": "module",
   "main": "./src/index.js",
@@ -42,5 +42,6 @@
     "url": "git+https://github.com/moonetix/referral-engine.git"
   },
   "license": "MIT",
+  "publishConfig": { "access": "public" },
   "author": "Moonetix (https://moonetix.com)"
 }

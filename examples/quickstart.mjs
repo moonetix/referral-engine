@@ -1,4 +1,4 @@
-import { MemoryStore, ReferralEngine, attribute, formatCode, generateCode } from 'referral-engine';
+import { MemoryStore, ReferralEngine, attribute, formatCode, generateCode } from '@moonetix/referral-engine';
 
 const DAY = 86400;
 const engine = new ReferralEngine({

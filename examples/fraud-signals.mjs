@@ -1,4 +1,4 @@
-import { fraudSignals } from 'referral-engine';
+import { fraudSignals } from '@moonetix/referral-engine';
 
 const DAY = 86400;
 const report = fraudSignals({

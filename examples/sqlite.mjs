@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { ReferralEngine } from 'referral-engine';
-import { SqliteStore } from 'referral-engine/sqlite';
+import { ReferralEngine } from '@moonetix/referral-engine';
+import { SqliteStore } from '@moonetix/referral-engine/sqlite';
 
 const db = new DatabaseSync(':memory:'); // a file path in production
-db.exec(readFileSync(new URL(import.meta.resolve('referral-engine/schema/sqlite.sql')), 'utf8'));
+db.exec(readFileSync(new URL(import.meta.resolve('@moonetix/referral-engine/schema/sqlite.sql')), 'utf8'));
 
 const engine = new ReferralEngine({ store: new SqliteStore(db), plan: { type: 'percentage', rateBps: 500 } });
 await engine.attach({ refereeId: 'u_2001', referrerId: 'u_1001', at: 1767225600 });

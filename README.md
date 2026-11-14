@@ -7,6 +7,7 @@
 [![Zero dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen)](package.json)
 [![Node 20+](https://img.shields.io/badge/node-20%2B-339933)](package.json)
 [![PHP 8.1+](https://img.shields.io/badge/php-8.1%2B-777BB4)](composer.json)
+[![npm](https://img.shields.io/npm/v/%40moonetix%2Freferral-engine?color=004ABB)](https://www.npmjs.com/package/@moonetix/referral-engine)
 [![Packagist](https://img.shields.io/packagist/v/moonetix/referral-engine?color=004ABB)](https://packagist.org/packages/moonetix/referral-engine)
 [![Guide: referral fraud](https://img.shields.io/badge/guide-preventing%20referral%20fraud-004ABB)](https://moonetix.com/academy/traffic-quality/prevent-referral-fraud)
 
@@ -55,18 +56,18 @@ flowchart TD
 
 ## Quick start
 
-The PHP package is on [Packagist](https://packagist.org/packages/moonetix/referral-engine). The JavaScript package is not on npm yet, so install it from Git:
+The JavaScript package is on [npm](https://www.npmjs.com/package/@moonetix/referral-engine) and the PHP package is on [Packagist](https://packagist.org/packages/moonetix/referral-engine):
 
 ```bash
+npm install @moonetix/referral-engine
 composer require moonetix/referral-engine
-npm install github:moonetix/referral-engine
 ```
 
 **JavaScript**
 
 <!-- example: examples/quickstart.mjs -->
 ```js
-import { MemoryStore, ReferralEngine, attribute, formatCode, generateCode } from 'referral-engine';
+import { MemoryStore, ReferralEngine, attribute, formatCode, generateCode } from '@moonetix/referral-engine';
 
 const DAY = 86400;
 const engine = new ReferralEngine({
@@ -253,11 +254,11 @@ Schemas: [schema/postgresql.sql](schema/postgresql.sql), [schema/mysql.sql](sche
 ```js
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { ReferralEngine } from 'referral-engine';
-import { SqliteStore } from 'referral-engine/sqlite';
+import { ReferralEngine } from '@moonetix/referral-engine';
+import { SqliteStore } from '@moonetix/referral-engine/sqlite';
 
 const db = new DatabaseSync(':memory:'); // a file path in production
-db.exec(readFileSync(new URL(import.meta.resolve('referral-engine/schema/sqlite.sql')), 'utf8'));
+db.exec(readFileSync(new URL(import.meta.resolve('@moonetix/referral-engine/schema/sqlite.sql')), 'utf8'));
 
 const engine = new ReferralEngine({ store: new SqliteStore(db), plan: { type: 'percentage', rateBps: 500 } });
 await engine.attach({ refereeId: 'u_2001', referrerId: 'u_1001', at: 1767225600 });
@@ -301,7 +302,7 @@ Most referral fraud is one person, or a small group, playing both sides. The use
 
 <!-- example: examples/fraud-signals.mjs -->
 ```js
-import { fraudSignals } from 'referral-engine';
+import { fraudSignals } from '@moonetix/referral-engine';
 
 const DAY = 86400;
 const report = fraudSignals({
