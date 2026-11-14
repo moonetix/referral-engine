@@ -30,6 +30,56 @@ function canon(mixed $v): mixed
     return $v;
 }
 
+/**
+ * A SQLite connection that reports another driver name and records what PdoStore sends for
+ * locking. SQLite has no GET_LOCK or advisory locks, so those statements get a stand-in.
+ */
+final class DriverDouble extends PDO
+{
+    /** @var list<string> */
+    public array $log = [];
+    public bool $refuseLock = false;
+
+    public function __construct(private string $driverName, string $schema)
+    {
+        parent::__construct('sqlite::memory:');
+        $this->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $this->exec($schema);
+    }
+
+    public function getAttribute(int $attribute): mixed
+    {
+        return $attribute === PDO::ATTR_DRIVER_NAME ? $this->driverName : parent::getAttribute($attribute);
+    }
+
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+        foreach (['GET_LOCK', 'RELEASE_LOCK', 'pg_advisory_xact_lock'] as $function) {
+            if (str_contains($query, $function)) {
+                $this->log[] = $function;
+                $bound = implode(' AND ', array_fill(0, substr_count($query, '?'), '? IS NOT NULL'));
+                return parent::prepare('SELECT ' . ($this->refuseLock ? 0 : 1) . " WHERE {$bound}");
+            }
+        }
+        if (str_contains($query, 'FROM referral_ledger')) {
+            $this->log[] = 'read';
+        }
+        return parent::prepare($query, $options);
+    }
+
+    public function commit(): bool
+    {
+        $this->log[] = 'commit';
+        return parent::commit();
+    }
+
+    public function rollBack(): bool
+    {
+        $this->log[] = 'rollback';
+        return parent::rollBack();
+    }
+}
+
 function bytesSource(string $hex): Closure
 {
     $buf = (string)hex2bin($hex);
@@ -148,6 +198,41 @@ if ($hasSqlite) {
             $check(str_contains($e->getMessage(), 'append-only'), "ledger refuses: {$sql}", $e->getMessage());
         }
     }
+
+    // PdoStore must take a lock named after the key before it reads on PostgreSQL and MySQL.
+    // DriverDouble is SQLite underneath, so this checks which statements are sent and in
+    // which order. php/tests/concurrency.php checks the locks themselves on real servers.
+    $ledgerRows = static fn(PDO $pdo): int => (int)$pdo->query('SELECT COUNT(*) FROM referral_ledger')->fetchColumn();
+    $lockedEngine = static function (string $driver) use ($schema): array {
+        $pdo = new DriverDouble($driver, $schema);
+        $engine = new ReferralEngine(['store' => new PdoStore($pdo), 'plan' => ['type' => 'percentage', 'rateBps' => 1000]]);
+        $engine->attach(['refereeId' => 'b', 'referrerId' => 'a', 'at' => 0]);
+        $pdo->log = [];
+        $engine->recordEarning(['earningId' => 'e1', 'refereeId' => 'b', 'amount' => 5000, 'at' => 1]);
+        return [$pdo, $engine];
+    };
+
+    [$pdo, $engine] = $lockedEngine('mysql');
+    $check(array_count_values($pdo->log)['GET_LOCK'] === 2 && array_slice($pdo->log, -3) === ['commit', 'RELEASE_LOCK', 'RELEASE_LOCK'], 'mysql: an earning locks the earning and the referrer, released after the commit', implode(' ', $pdo->log));
+    $pdo->log = [];
+    $engine->recordPayout(['payoutId' => 'p1', 'referrerId' => 'a', 'amount' => 200, 'at' => 2]);
+    $check($pdo->log[0] === 'GET_LOCK' && array_slice($pdo->log, -2) === ['commit', 'RELEASE_LOCK'] && in_array('read', $pdo->log, true), 'mysql: a payout locks the referrer before it reads the balance', implode(' ', $pdo->log));
+    $pdo->log = [];
+    $pdo->refuseLock = true;
+    $rows = $ledgerRows($pdo);
+    try {
+        $engine->recordPayout(['payoutId' => 'p2', 'referrerId' => 'a', 'amount' => 200, 'at' => 3]);
+        $check(false, 'mysql: a lock that cannot be taken stops the payout');
+    } catch (ReferralException $e) {
+        $check($e->errorCode === 'conflict' && $pdo->log === ['GET_LOCK'] && !$pdo->inTransaction() && $ledgerRows($pdo) === $rows, 'mysql: a lock that cannot be taken stops the payout', $e->errorCode . ' ' . implode(' ', $pdo->log));
+    }
+    $pdo->refuseLock = false;
+    $check($engine->balance('a', 10)['available'] === 300, 'mysql: balance after the locked calls');
+
+    [$pdo, $engine] = $lockedEngine('pgsql');
+    $pdo->log = [];
+    $engine->recordPayout(['payoutId' => 'p1', 'referrerId' => 'a', 'amount' => 200, 'at' => 2]);
+    $check($pdo->log[0] === 'pg_advisory_xact_lock' && end($pdo->log) === 'commit' && !in_array('RELEASE_LOCK', $pdo->log, true), 'pgsql: a payout takes a transaction-scoped advisory lock before it reads', implode(' ', $pdo->log));
 } else {
     fwrite(STDERR, "skip: pdo_sqlite not available, PdoStore not tested\n");
 }
