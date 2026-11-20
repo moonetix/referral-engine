@@ -40,7 +40,8 @@ if (php) {
   }
 }
 
-for (const file of readdirSync(dir).sort()) {
+// demo.mjs prints a walkthrough rather than "// ->" lines; test/demo.test.js covers it.
+for (const file of readdirSync(dir).sort().filter((f) => f !== 'demo.mjs')) {
   const isPhp = file.endsWith('.php');
   const skip =
     (isPhp && !php && 'php not installed') ||

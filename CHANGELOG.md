@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `npm run demo` (or `node examples/demo.mjs`) prints a plain-text walkthrough from a fresh clone, with nothing to install: attribution with a blocked same-device sign-up, tiered commission with a hold, a chargeback that claws back the commission, and payouts refused when they exceed the balance, including one dated before a recorded payout. It uses only the public API, and `test/demo.test.js` runs it in the test suite. It is not part of the npm package.
+
 ## [1.1.0] - 2026-11-14
 
 ### Changed
@@ -35,6 +41,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Reference schemas for PostgreSQL, MySQL and SQLite with append-only triggers.
 - 152 shared test vectors in `test-vectors/vectors.json`, run by both suites, with the ledger scenarios also run on SQLite.
 
+[Unreleased]: https://github.com/moonetix/referral-engine/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/moonetix/referral-engine/releases/tag/v1.1.0
 [1.0.1]: https://github.com/moonetix/referral-engine/releases/tag/v1.0.1
 [1.0.0]: https://github.com/moonetix/referral-engine/releases/tag/v1.0.0

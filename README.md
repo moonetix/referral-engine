@@ -23,6 +23,41 @@ This library covers the parts that have to be exact: codes people can read aloud
 
 Commission is earned only from the referred user's own confirmed earnings and is paid on top of them. There is no sign-up or invite bonus, by design: a reward for creating an account is the easiest money a referral farm can collect.
 
+## Try it
+
+Clone the repository and run the demo. It needs Node 20 or later and installs nothing:
+
+```bash
+git clone https://github.com/moonetix/referral-engine.git
+cd referral-engine
+npm run demo        # or: node examples/demo.mjs
+```
+
+It walks through one referrer and four sign-ups with a tiered plan, a 14-day hold, a chargeback and three payouts, using only the public API ([examples/demo.mjs](examples/demo.mjs)). Part of the output:
+
+```text
+3. Four people sign up with it
+   u_ben   attributed, referred by u_ana
+   u_cleo  attributed, referred by u_ana
+   u_dan   attributed, referred by u_ana
+   u_eve   blocked: same_device (The new account signed up on a device the referrer has used (1 shared).)
+
+4. Referred users earn; Ana's commission is added on top
+   2026-01-02 u_ben   earns $20.00 -> Ana gets $2.00 (10.00%), available 2026-01-16
+   2026-01-03 u_cleo  earns $30.00 -> Ana gets $3.00 (10.00%), available 2026-01-17
+   2026-01-04 u_dan   earns $40.00 -> Ana gets $6.00 (15.00%), available 2026-01-18
+   2026-01-05 u_ben   earns $10.00 -> Ana gets $1.50 (15.00%), available 2026-01-19
+
+5. Chargeback: Dan's $40.00 is reversed after the hold
+   2026-01-22 tx_3 reversed -> $6.00 clawed back from Ana
+   balance on 2026-01-22: pending $0.00, available $6.50, total $6.50
+
+6. Payouts never take more than the balance
+   2026-01-26 payout $15.00 -> refused, insufficient_balance: available balance is 650, payout is 1500
+   2026-01-26 payout  $6.00 -> recorded
+   2026-01-23 payout  $5.00 dated earlier -> refused, insufficient_balance: available balance is 50, payout is 500
+```
+
 ## The referral lifecycle
 
 ```mermaid
@@ -397,7 +432,7 @@ php php/tests/concurrency.php   # parallel payouts on a real database, skipped w
 
 `php/tests/concurrency.php` takes `REFERRAL_TEST_DSN` (`pgsql:`, `mysql:` or `sqlite:`) with `REFERRAL_TEST_USER` and `REFERRAL_TEST_PASSWORD`. It drops and recreates the referral tables there, so point it at a throwaway database. Worker processes with their own connections then call `recordPayout` at the same moment: one balance must be paid exactly once, and payouts for different referrers must all go through.
 
-`test-vectors/vectors.json` holds 153 cases: code generation from fixed random bytes, check characters, IPv4 and IPv6 prefixes, every attribution rule, plan validation, commission math up to 2^53 - 1, fraud signals and 16 ledger scenarios (113 checked steps) with caps, tiers, holds, partial reversals, the balance floor, payouts dated out of order and multi-level chains. Every file in `examples/` runs in the tests, and its output must match the `// ->` comments, which are the same code blocks you see in this README.
+`test-vectors/vectors.json` holds 153 cases: code generation from fixed random bytes, check characters, IPv4 and IPv6 prefixes, every attribution rule, plan validation, commission math up to 2^53 - 1, fraud signals and 16 ledger scenarios (113 checked steps) with caps, tiers, holds, partial reversals, the balance floor, payouts dated out of order and multi-level chains. Every file in `examples/` runs in the tests, and its output must match the `// ->` comments, which are the same code blocks you see in this README. The demo (`examples/demo.mjs`) has its own test that checks its exit code and key output lines.
 
 ## Further reading
 
